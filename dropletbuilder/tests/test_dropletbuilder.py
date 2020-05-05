@@ -36,6 +36,13 @@ class BaseTest:
         water = mbuild.load(get_fn('tip3p.mol2'))
         return Droplet(radius=1, angle=90.0, fluid=water, density=997, x=4, y=4)
 
+    @pytest.fixture
+    def DropletMixture(self):
+        from dropletbuilder.dropletbuilder import Droplet
+        water = mbuild.load(get_fn('tip3p.mol2'))
+        ch3cn = mbuild.load(get_fn('ch3cn.mol2'))
+        return Droplet(radius=1, angle=90.0, fluid=[water, ch3cn],
+                density=[997, 786], compound_ratio=[0.5, 0.5], x=4, y=4)
 
 """
 Unit Tests for Droplet class.
@@ -180,3 +187,32 @@ class TestDropletBuilder(BaseTest):
                         DropletWithDims.surface_height + 0.001):
                     assert False
         assert True
+
+    def test_compound_ratio(self, DropletMixture):
+        droplet = DropletMixture
+
+    def test_droplet_with_missing_compound_ratio(self):
+        from dropletbuilder.dropletbuilder import Droplet
+        water = mbuild.load(get_fn('tip3p.mol2'))
+        ch3cn = mbuild.load(get_fn('ch3cn.mol2'))
+        with pytest.raises(ValueError, match="Determining 'n_compounds'"):
+            Droplet(radius=1, angle=90.0, fluid=[water, ch3cn],
+                    density=[997, 786], x=4, y=4)
+
+    def test_droplet_incorrect_compound_ratio_length(self):
+        from dropletbuilder.dropletbuilder import Droplet
+        water = mbuild.load(get_fn('tip3p.mol2'))
+        ch3cn = mbuild.load(get_fn('ch3cn.mol2'))
+        with pytest.raises(ValueError, match="Length of 'compound_ratio'"):
+            Droplet(radius=1, angle=90.0, fluid=[water, ch3cn],
+                    density=[997, 786], compound_ratio=[0.3, 0.4, 0.2],
+                    x=4, y=4)
+
+    def test_droplet_incorrect_compound_ratio_sum(self):
+        from dropletbuilder.dropletbuilder import Droplet
+        water = mbuild.load(get_fn('tip3p.mol2'))
+        ch3cn = mbuild.load(get_fn('ch3cn.mol2'))
+        with pytest.raises(ValueError, match="must sum up to equal 1"):
+            Droplet(radius=1, angle=90.0, fluid=[water, ch3cn],
+                    density=[997, 786], compound_ratio=[0.3, 0.4],
+                    x=4, y=4)

@@ -23,6 +23,9 @@ class Droplet(mbuild.Compound):
         compounds to fill the droplet with
     density: float or list of float
         target density for the droplet in kg/m^3
+    compound_ratio : float or list of float
+        Ratio of number of each compound to be put in sphere.  Only used in
+        the case of 'density' being specified and more than one 'fluid'
     lattice: mbuild.Lattice
         lattice to build droplet on
     lattice_compound: mbuild.Compound
@@ -40,6 +43,7 @@ class Droplet(mbuild.Compound):
     """
 
     def __init__(self, radius=2, angle=90.0, fluid=None, density=None,
+                compound_ratio=None,
                 lattice=None, lattice_compound=None, x=None, y=None):
 
         super(Droplet, self).__init__()
@@ -48,6 +52,18 @@ class Droplet(mbuild.Compound):
             raise ValueError('Fluid droplet compounds must be specified')
         if density is None:
             raise ValueError('Fluid density must be specified (units kg/m^3)')
+        if isinstance(fluid, list):
+            if compound_ratio is None:
+                msg = ("Determining 'n_compounds' for multiple fluids requires"
+                        " 'compound_ratio' to be specified.")
+                raise ValueError(msg)
+            if len(fluid) != len(compound_ratio):
+                msg = ("Length of 'compound_ratio' must equal length of"
+                        " 'compound'")
+                raise ValueError(msg)
+            if np.sum(compound_ratio) != 1:
+                msg = "`compound_ratio` must sum up to equal 1."
+                raise ValueError(msg)
 
         if x:
             if x < radius * 4:
@@ -129,7 +145,8 @@ class Droplet(mbuild.Compound):
         height = get_height(radius, angle)
         sphere_coords = [coords[0] / 2, coords[1] / 2, radius, radius]
         sphere = mbuild.fill_sphere(
-            compound=fluid, sphere=sphere_coords, density=density)
+            compound=fluid, sphere=sphere_coords, density=density,
+            compound_ratio=compound_ratio)
 
         to_remove = []
         for child in sphere.children:
