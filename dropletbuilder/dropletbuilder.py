@@ -1,5 +1,6 @@
 import mbuild
 import numpy as np
+import warnings
 
 
 def get_height(r, theta):
@@ -30,6 +31,8 @@ class Droplet(mbuild.Compound):
         lattice to build droplet on
     lattice_compound: mbuild.Compound
         compound to build lattice with
+    full_lattice: Boolean, default=False
+        Designates whether `lattice_compound` is a completed crystal lattice
     x : float
         dimension of graphene sheet in x direction in nm
     y : float
@@ -44,7 +47,7 @@ class Droplet(mbuild.Compound):
 
     def __init__(self, radius=2, angle=90.0, fluid=None, density=None,
                 compound_ratio=None,
-                lattice=None, lattice_compound=None, x=None, y=None):
+                lattice=None, full_lattice=False, lattice_compound=None, x=None, y=None):
 
         super(Droplet, self).__init__()
 
@@ -64,6 +67,21 @@ class Droplet(mbuild.Compound):
             if np.sum(compound_ratio) != 1:
                 msg = "`compound_ratio` must sum up to equal 1."
                 raise ValueError(msg)
+
+        if full_lattice:
+            if x or y:
+                raise ValueError('if `full_lattice` is True, then x and y'
+                        ' should not be passed as dimensions will be determined'
+                        ' from the `lattice_compound`.')
+            if lattice:
+                warnings.warn('`lattice` argument passed but will not be used'
+                        ' as `full_lattice` is True')
+            if lattice_compound.periodicity[0] < radius * 4:
+                raise ValueError(
+                    'Dimension x of sheet must be at least radius * 4')
+            if lattice_compound.periodicity[1] < radius * 4:
+                raise ValueError(
+                    'Dimension y of sheet must be at least radius * 4')
 
         if x:
             if x < radius * 4:
@@ -89,37 +107,42 @@ class Droplet(mbuild.Compound):
         if lattice is None:
 
             if lattice_compound is not None:
-                raise ValueError(
-                    'If Lattice is None, defaults to a Graphene surface. ' +
-                    'In this case, do not specify lattice_compound.'
+                if full_lattice:
+                    lat = lattice_compound
+                else:
+                    raise ValueError(
+                        'If Lattice is None, defaults to a Graphene surface. ' +
+                        'In this case, do not specify lattice_compound.'
+                    )
+            if full_lattice:
+                pass
+            else:
+                lattice_compound = mbuild.Compound(name='C')
+                lattice_spacing = [0.2456, 0.2456, 0.335]
+                angles = [90.0, 90.0, 120.0]
+                carbon_locations = [[0, 0, 0], [2 / 3, 1 / 3, 0]]
+                basis = {lattice_compound.name: carbon_locations}
+                lattice = mbuild.Lattice(
+                    lattice_spacing=lattice_spacing,
+                    angles=angles,
+                    lattice_points=basis)
+                compound_dict = {lattice_compound.name: lattice_compound}
+
+                factor = np.cos(np.pi / 6) # fixes non-cubic lattice
+                # Estimate the number of lattice repeat units
+                replicate = [int(x / 0.2456), int(y / 0.2456) * (1 / factor)]
+
+                lat = lattice.populate(
+                    compound_dict=compound_dict,
+                    x=replicate[0],
+                    y=replicate[1],
+                    z=3
                 )
 
-            lattice_compound = mbuild.Compound(name='C')
-            lattice_spacing = [0.2456, 0.2456, 0.335]
-            angles = [90.0, 90.0, 120.0]
-            carbon_locations = [[0, 0, 0], [2 / 3, 1 / 3, 0]]
-            basis = {lattice_compound.name: carbon_locations}
-            lattice = mbuild.Lattice(
-                lattice_spacing=lattice_spacing,
-                angles=angles,
-                lattice_points=basis)
-            compound_dict = {lattice_compound.name: lattice_compound}
-
-            factor = np.cos(np.pi / 6) # fixes non-cubic lattice
-            # Estimate the number of lattice repeat units
-            replicate = [int(x / 0.2456), int(y / 0.2456) * (1 / factor)]
-
-            lat = lattice.populate(
-                compound_dict=compound_dict,
-                x=replicate[0],
-                y=replicate[1],
-                z=3
-            )
-
-            for particle in lat.particles():
-                if particle.xyz[0][0] < 0:
-                    particle.xyz[0][0] += lat.periodicity[0]
-            lat.periodicity[1] *= factor
+                for particle in lat.particles():
+                    if particle.xyz[0][0] < 0:
+                        particle.xyz[0][0] += lat.periodicity[0]
+                lat.periodicity[1] *= factor
 
         else:
             if lattice_compound is None:
